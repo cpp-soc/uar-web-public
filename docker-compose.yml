@@ -1,0 +1,92 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: uar-postgres
+    environment:
+      POSTGRES_DB: uar_database
+      POSTGRES_USER: uar_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uar_user -d uar_database"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - uar-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: uar-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - uar-network
+
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+    container_name: uar-app
+    image: uar-web:latest
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://uar_user:${DB_PASSWORD:-changeme}@postgres:5432/uar_database
+      REDIS_URL: redis://redis:6379
+      REDIS_TOKEN: ${REDIS_TOKEN:-}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      LDAP_URL: ${LDAP_URL}
+      LDAP_BIND_DN: ${LDAP_BIND_DN}
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD}
+      LDAP_BASE: ${LDAP_BASE}
+      LDAP_SEARCH_BASE: ${LDAP_SEARCH_BASE}
+      LDAP_DOMAIN: ${LDAP_DOMAIN}
+      LDAP_ADMIN_GROUPS: ${LDAP_ADMIN_GROUPS}
+      LDAP_GROUP2ADD: ${LDAP_GROUP2ADD}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3002}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
+      ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
+      ENCRYPTION_SALT: ${ENCRYPTION_SALT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - uar-network
+    restart: unless-stopped
+networks:
+  uar-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
