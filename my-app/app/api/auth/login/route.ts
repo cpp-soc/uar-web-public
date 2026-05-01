@@ -6,6 +6,7 @@ import { parseJsonWithLimit, MAX_REQUEST_BODY_SIZE } from '@/lib/validation';
 import { prisma } from '@/lib/prisma';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 import { StandardErrors, authenticationError } from '@/lib/standardErrors';
+import { appLogger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     if (!authResult.success) {
       // Log detailed error server-side only
-      console.error('[Login] Authentication failed:', {
+      appLogger.error('[Login] Authentication failed:', undefined, {
         username, // Safe to log username for audit purposes
         error: authResult.error,
         timestamp: new Date().toISOString(),
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
       });
     } catch (auditError) {
       // Don't fail login if audit logging fails, but log error
-      console.error('Failed to log login success:', auditError);
+      appLogger.error('Failed to log login success:', auditError);
     }
 
     await establishSessionOnResponse(response, username, isDomainAdmin, ipAddress, userAgent);
